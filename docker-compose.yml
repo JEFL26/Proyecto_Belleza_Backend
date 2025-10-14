@@ -1,0 +1,51 @@
+version: "3.9"
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: centro_belleza_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456789
+      MYSQL_DATABASE: centro_belleza
+      MYSQL_USER: usuario
+      MYSQL_PASSWORD: password
+      MYSQL_ROOT_HOST: '%'  # permite conexiones desde cualquier host (contenedor backend)
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db_data:/var/lib/mysql
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: centro_belleza_backend
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "python -m app.db.init_db && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+  frontend:
+    build:
+      context: ./app/Frontend
+      dockerfile: Dockerfile
+    container_name: centro_belleza_frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
