@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db import models
-from app.api.deps import get_db
+from app.db.deps import get_db
 from app.schemas import servicio as schemas
 from loguru import logger
 
