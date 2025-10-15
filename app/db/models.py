@@ -1,91 +1,57 @@
 # app/db/models.py
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, Boolean, func
+from datetime import datetime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, ForeignKey
 from sqlalchemy.orm import relationship
 from app.db.session import Base
 
-# ==============================
-# 👤 Modelo Usuario
-# ==============================
-class Usuario(Base):
-    """
-    Representa un usuario del sistema.
 
-    Atributos:
-        id (int): Identificador único del usuario.
-        nombre (str): Nombre completo.
-        email (str): Correo electrónico único.
-        hashed_password (str): Contraseña hasheada.
-        is_active (bool): Indica si el usuario está activo.
-        is_admin (bool): Indica si el usuario tiene permisos de administrador.
-        created_at (datetime): Fecha de creación del registro.
-        reservas (List[Reserva]): Relación con las reservas realizadas por el usuario.
-    """
+# =============================
+#   Modelo: Usuario
+# =============================
+class Usuario(Base):
     __tablename__ = "usuarios"
 
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(100), nullable=False)
-    email = Column(String(120), unique=True, nullable=False, index=True)
+    email = Column(String(150), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relación con reservas
-    reservas = relationship("Reserva", back_populates="usuario")
+    reservas = relationship("Reserva", back_populates="usuario", cascade="all, delete-orphan")
 
-# ==============================
-# 💅 Modelo Servicio
-# ==============================
+
+# =============================
+#   Modelo: Servicio
+# =============================
 class Servicio(Base):
-    """
-    Representa un servicio ofrecido en el centro de belleza.
-
-    Atributos:
-        id (int): Identificador único del servicio.
-        nombre (str): Nombre del servicio.
-        descripcion (str): Descripción breve del servicio.
-        precio (float): Precio en moneda local.
-        duracion_minutos (int): Duración del servicio en minutos.
-        is_active (bool): Indica si el servicio está disponible.
-        reservas (List[Reserva]): Relación con las reservas asociadas a este servicio.
-    """
     __tablename__ = "servicios"
 
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(100), nullable=False)
-    descripcion = Column(String(255))
+    descripcion = Column(String(255), nullable=True)
     precio = Column(Float, nullable=False)
-    duracion_minutos = Column(Integer, nullable=False)
-    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    reservas = relationship("Reserva", back_populates="servicio")
+    # Relación con reservas
+    reservas = relationship("Reserva", back_populates="servicio", cascade="all, delete-orphan")
 
-# ==============================
-# 📅 Modelo Reserva
-# ==============================
+
+# =============================
+#   Modelo: Reserva
+# =============================
 class Reserva(Base):
-    """
-    Representa una reserva realizada por un usuario para un servicio específico.
-
-    Atributos:
-        id (int): Identificador único de la reserva.
-        usuario_id (int): FK al usuario que realiza la reserva.
-        servicio_id (int): FK al servicio reservado.
-        fecha_hora (datetime): Fecha y hora de la reserva.
-        estado (str): Estado de la reserva ("pendiente", "confirmado", "cancelado").
-        created_at (datetime): Fecha de creación del registro.
-        usuario (Usuario): Relación con el usuario.
-        servicio (Servicio): Relación con el servicio.
-    """
     __tablename__ = "reservas"
 
     id = Column(Integer, primary_key=True, index=True)
-    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
-    servicio_id = Column(Integer, ForeignKey("servicios.id"), nullable=False)
-    fecha_hora = Column(DateTime(timezone=True), nullable=False)
-    estado = Column(String(50), default="pendiente")  # pendiente, confirmado, cancelado
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False)
+    servicio_id = Column(Integer, ForeignKey("servicios.id", ondelete="CASCADE"), nullable=False)
+    fecha_reserva = Column(DateTime, nullable=False)
+    estado = Column(String(50), default="pendiente")
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    # Relaciones
+    # Relaciones inversas
     usuario = relationship("Usuario", back_populates="reservas")
     servicio = relationship("Servicio", back_populates="reservas")

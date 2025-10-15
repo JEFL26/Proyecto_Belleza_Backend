@@ -1,0 +1,65 @@
+CREATE DATABASE beauty_reservations;
+USE beauty_reservations;
+
+
+-- Roles: define permisos de usuario (ej: Admin, Stylist, Client)
+CREATE TABLE role (
+    id_role INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(30) NOT NULL UNIQUE COMMENT 'Role name (Admin, Stylist, Client)',
+    description VARCHAR(100),
+    state BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- Servicios que ofrece el salón (ej: haircut, manicure, color, etc.)
+CREATE TABLE service (
+    id_service INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    description VARCHAR(200),
+    duration_minutes INT NOT NULL CHECK (duration_minutes > 0),
+    price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
+    state BOOLEAN NOT NULL DEFAULT TRUE,
+    INDEX idx_service_name (name)
+);
+
+-- Tipos de pago aceptados
+CREATE TABLE payment_method (
+    id_payment_method INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(30) NOT NULL UNIQUE,
+    description VARCHAR(100),
+    state BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- Cuentas de usuario (login)
+CREATE TABLE user_account (
+    id_user INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    verified BOOLEAN DEFAULT FALSE,
+    state BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_user_email (email)
+);
+
+-- Asignación de roles a usuarios
+CREATE TABLE user_role (
+    id_user INT NOT NULL,
+    id_role INT NOT NULL,
+    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id_user, id_role),
+    FOREIGN KEY (id_user) REFERENCES user_account(id_user),
+    FOREIGN KEY (id_role) REFERENCES role(id_role)
+);
+
+-- Perfil extendido del usuario
+CREATE TABLE user_profile (
+    id_profile INT AUTO_INCREMENT PRIMARY KEY,
+    id_user INT NOT NULL UNIQUE,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    phone VARCHAR(15),
+    address VARCHAR(100),
+    birth_date DATE,
+    state BOOLEAN NOT NULL DEFAULT TRUE,
+    FOREIGN KEY (id_user) REFERENCES user_account(id_user)
+);

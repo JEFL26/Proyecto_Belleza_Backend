@@ -10,12 +10,13 @@ from typing import AsyncGenerator
 # ==============================
 
 # Motor de conexión asíncrono a la base de datos
-# echo=False evita mostrar todas las consultas en consola, cambiar a True para debug
 engine = create_async_engine(settings.DATABASE_URL, echo=False, future=True)
 
 # Creador de sesiones asíncronas
-# expire_on_commit=False evita que los objetos se "expiren" automáticamente tras commit
 AsyncSessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False)
+
+# Alias más corto y claro para reutilizar en otros módulos
+async_session = AsyncSessionLocal
 
 # Base declarativa para definir los modelos ORM
 Base = declarative_base()
