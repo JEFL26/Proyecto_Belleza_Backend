@@ -354,7 +354,7 @@
                     
                     // Suponiendo que el backend devuelve un campo "tipo" o "role"
                     // Ejemplo: tipo = "cliente" o "empleado"
-                    const usuario = data.usuario; // ya lo tienes disponible
+                    const usuario = data.data.usuario; // ya lo tienes disponible
                     if (usuario.tipo === "cliente") {
                         window.location.href = "/pages/cliente/profile.html";
                     } else if (usuario.tipo === "empleado" || usuario.tipo === "admin") {

@@ -1,233 +1,293 @@
 # app/api.py
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
+from sqlalchemy import select
 from passlib.context import CryptContext
-from app.db import models
-from app.schemas.usuario import UserAccountCreate, UserAccountOut, UserProfileCreate
-from app.schemas.servicio import ServiceCreate, ServiceUpdate, ServiceOut
-from typing import List
-from app.db.session import get_session
-from app.core.security import hash_password, verify_password, create_access_token
 from datetime import timedelta
-from app.core.config import settings
-from app.schemas.login import LoginRequest
 import pandas as pd
 import io
+
+# Importaciones locales
+from app.db import models
+from app.db.session import get_session
+from app.schemas.usuario import UserAccountCreate, UserAccountOut, UserProfileCreate
+from app.schemas.servicio import ServiceCreate, ServiceUpdate, ServiceOut
+from app.schemas.login import LoginRequest
+from app.core.security import hash_password, verify_password, create_access_token
+from app.core.config import settings
+from app.utils.response_handler import (
+    response_success,
+    response_bad_request,
+    response_not_found,
+    response_error,
+    ResponseHandler
+)
 
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Crear usuario + perfil
+
+# ======================================================
+# 👤 Crear usuario + perfil
+# ======================================================
 @router.post("/usuarios", response_model=UserAccountOut)
-async def create_user(user_in: UserAccountCreate, profile_in: UserProfileCreate, session: AsyncSession = Depends(get_session)):
-    # Validar email único
-    result = await session.execute(select(models.UserAccount).filter_by(email=user_in.email))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email ya registrado")
+async def create_user(
+    user_in: UserAccountCreate,
+    profile_in: UserProfileCreate,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Crea un nuevo usuario junto a su perfil.
+    - Valida que el email no esté registrado.
+    - Crea la cuenta y su perfil asociado.
+    """
+    try:
+        # Verificar email único
+        result = await session.execute(select(models.UserAccount).filter_by(email=user_in.email))
+        if result.scalar_one_or_none():
+            return ResponseHandler.bad_request("Email ya registrado")
 
-    # Crear cuenta
-    hashed = hash_password(user_in.password)
-    user = models.UserAccount(
-        email=user_in.email,
-        hashed_password=hashed,
-        id_role=user_in.id_role
-    )
-    session.add(user)
-    await session.flush()  # Para obtener ID
+        # Crear cuenta de usuario
+        hashed = hash_password(user_in.password)
+        user = models.UserAccount(
+            email=user_in.email,
+            hashed_password=hashed,
+            id_role=user_in.id_role
+        )
+        session.add(user)
+        await session.flush()  # Obtener ID antes de crear el perfil
 
-    # Crear perfil
-    profile = models.UserProfile(
-        id_user=user.id,
-        first_name=profile_in.first_name,
-        last_name=profile_in.last_name,
-        phone=profile_in.phone
-    )
-    session.add(profile)
+        # Crear perfil asociado
+        profile = models.UserProfile(
+            id_user=user.id,
+            first_name=profile_in.first_name,
+            last_name=profile_in.last_name,
+            phone=profile_in.phone
+        )
+        session.add(profile)
 
-    await session.commit()
-    await session.refresh(user)
-    return user
+        await session.commit()
+        await session.refresh(user)
 
-# Login
+        return response_success(
+            data={"id": user.id, "email": user.email},
+            message="Usuario creado exitosamente"
+        )
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        await session.rollback()
+        return response_error(f"Error al crear usuario: {str(e)}")
+
+
+# ======================================================
+# 🔐 Login
+# ======================================================
 @router.post("/login")
 async def login(login_data: LoginRequest, session: AsyncSession = Depends(get_session)):
-    email = login_data.email
-    password = login_data.password
+    """
+    Valida las credenciales del usuario y genera un token JWT.
+    """
+    try:
+        result = await session.execute(select(models.UserAccount).filter_by(email=login_data.email))
+        user = result.scalar_one_or_none()
 
-    result = await session.execute(select(models.UserAccount).filter_by(email=email))
-    user = result.scalar_one_or_none()
-    if not user or not verify_password(password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+        if not user or not verify_password(login_data.password, user.hashed_password):
+            return response_bad_request("Credenciales inválidas")
 
-    access_token_expires = timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_HOURS)
-    token = create_access_token(
-        {"sub": user.email, "id_role": user.id_role},
-        expires_delta=access_token_expires
-    )
+        # Generar token
+        access_token_expires = timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_HOURS)
+        token = create_access_token(
+            {"sub": user.email, "id_role": user.id_role},
+            expires_delta=access_token_expires
+        )
 
-    # Obtener perfil (nombre)
-    result_profile = await session.execute(
-        select(models.UserProfile).filter_by(id_user=user.id)
-    )
-    profile = result_profile.scalar_one_or_none()
+        # Obtener perfil
+        result_profile = await session.execute(
+            select(models.UserProfile).filter_by(id_user=user.id)
+        )
+        profile = result_profile.scalar_one_or_none()
 
-    # Mapear rol según id_role
-    # Mapear rol según id_role
-    if user.id_role == 1:
-        tipo = "admin"
-    elif user.id_role == 2:
-        tipo = "cliente"
-    else:
-        tipo = "empleado"  # por si agregas otros roles
-    # role_map = {1: "admin", 2: "cliente"}
-    # tipo = role_map.get(user.id_role, "empleado")
+        # Determinar tipo de usuario
+        tipo = (
+            "admin" if user.id_role == 1
+            else "cliente" if user.id_role == 2
+            else "empleado"
+        )
 
-    return {
-        "access_token": token,
-        "usuario": {
-            "id": user.id,
-            "email": user.email,
-            "first_name": profile.first_name if profile else "",
-            "tipo": tipo
-        }
-    }
+        return response_success(
+            data={
+                "access_token": token,
+                "usuario": {
+                    "id": user.id,
+                    "email": user.email,
+                    "first_name": profile.first_name if profile else "",
+                    "tipo": tipo
+                }
+            },
+            message="Inicio de sesión exitoso"
+        )
 
-# ==============================
-# CRUD de Servicios
-# ==============================
+    except Exception as e:
+        return response_error(f"Error al iniciar sesión: {str(e)}")
+
+
+# ======================================================
+# 💇 CRUD de Servicios
+# ======================================================
 
 @router.post("/services", response_model=ServiceOut)
 async def create_service(service: ServiceCreate, session: AsyncSession = Depends(get_session)):
-    new_service = models.Service(**service.dict())
-    session.add(new_service)
-    await session.commit()
-    await session.refresh(new_service)
-    return new_service
+    """
+    Crea un nuevo servicio.
+    """
+    try:
+        new_service = models.Service(**service.dict())
+        session.add(new_service)
+        await session.commit()
+        await session.refresh(new_service)
+        return response_success(ServiceOut.model_validate(new_service), "Servicio creado correctamente")
+    except Exception as e:
+        await session.rollback()
+        return response_error(f"Error al crear servicio: {str(e)}")
 
 
-@router.get("/services", response_model=List[ServiceOut])
+@router.get("/services", response_model=list[ServiceOut])
 async def get_services(session: AsyncSession = Depends(get_session)):
-    result = await session.execute(select(models.Service))
-    services = result.scalars().all()
-    return services
+    """
+    Obtiene todos los servicios disponibles.
+    """
+    try:
+        result = await session.execute(select(models.Service))
+        services = result.scalars().all()
+        return response_success(
+            [ServiceOut.model_validate(s) for s in services],
+            "Servicios obtenidos correctamente"
+        )
+    except Exception as e:
+        return response_error(f"Error al obtener servicios: {str(e)}")
 
 
 @router.get("/services/{service_id}", response_model=ServiceOut)
 async def get_service(service_id: int, session: AsyncSession = Depends(get_session)):
-    result = await session.execute(select(models.Service).filter_by(id_service=service_id))
-    service = result.scalar_one_or_none()
-    if not service:
-        raise HTTPException(status_code=404, detail="Servicio no encontrado")
-    return service
+    """
+    Obtiene un servicio por su ID.
+    """
+    try:
+        result = await session.execute(select(models.Service).filter_by(id_service=service_id))
+        service = result.scalar_one_or_none()
+        if not service:
+            return response_not_found("Servicio no encontrado")
+        return response_success(ServiceOut.model_validate(service), "Servicio obtenido correctamente")
+    except Exception as e:
+        return response_error(f"Error al obtener servicio: {str(e)}")
 
 
 @router.put("/services/{service_id}", response_model=ServiceOut)
 async def update_service(service_id: int, update_data: ServiceUpdate, session: AsyncSession = Depends(get_session)):
-    result = await session.execute(select(models.Service).filter_by(id_service=service_id))
-    service = result.scalar_one_or_none()
-    if not service:
-        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    """
+    Actualiza la información de un servicio.
+    """
+    try:
+        result = await session.execute(select(models.Service).filter_by(id_service=service_id))
+        service = result.scalar_one_or_none()
+        if not service:
+            return response_not_found("Servicio no encontrado")
 
-    for key, value in update_data.dict(exclude_unset=True).items():
-        setattr(service, key, value)
+        for key, value in update_data.dict(exclude_unset=True).items():
+            setattr(service, key, value)
 
-    await session.commit()
-    await session.refresh(service)
-    return service
+        await session.commit()
+        await session.refresh(service)
+        return response_success(ServiceOut.model_validate(service), "Servicio actualizado correctamente")
+
+    except Exception as e:
+        await session.rollback()
+        return response_error(f"Error al actualizar servicio: {str(e)}")
 
 
 @router.delete("/services/{service_id}")
 async def delete_service(service_id: int, session: AsyncSession = Depends(get_session)):
-    result = await session.execute(select(models.Service).filter_by(id_service=service_id))
-    service = result.scalar_one_or_none()
-    if not service:
-        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    """
+    Elimina un servicio por su ID.
+    """
+    try:
+        result = await session.execute(select(models.Service).filter_by(id_service=service_id))
+        service = result.scalar_one_or_none()
+        if not service:
+            return response_not_found("Servicio no encontrado")
 
-    await session.delete(service)
-    await session.commit()
-    return {"message": "Servicio eliminado correctamente"}
+        await session.delete(service)
+        await session.commit()
+        return response_success(message="Servicio eliminado correctamente")
+
+    except Exception as e:
+        await session.rollback()
+        return response_error(f"Error al eliminar servicio: {str(e)}")
 
 
+# ======================================================
+# 📦 Carga masiva de servicios (Excel)
+# ======================================================
 @router.post("/services/bulk-upload")
 async def bulk_upload_services(
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_session)
 ):
     """
-    Carga masiva de servicios desde archivo Excel (.xls, .xlsx)
-    El archivo debe tener las columnas: name, description, duration_minutes, price
+    Carga masiva de servicios desde un archivo Excel (.xls, .xlsx).
+    Requiere las columnas: name, description, duration_minutes, price.
     """
-    
-    # Validar extensión del archivo
     if not file.filename.endswith(('.xls', '.xlsx')):
-        raise HTTPException(
-            status_code=400, 
-            detail="Solo se aceptan archivos .xls o .xlsx"
-        )
-    
+        return response_bad_request("Solo se aceptan archivos .xls o .xlsx")
+
     try:
-        # Leer el archivo Excel
         contents = await file.read()
         df = pd.read_excel(io.BytesIO(contents))
-        
-        # Validar columnas requeridas
+
         required_columns = ['name', 'description', 'duration_minutes', 'price']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        
+        missing_columns = [c for c in required_columns if c not in df.columns]
         if missing_columns:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Faltan columnas requeridas: {', '.join(missing_columns)}"
-            )
-        
-        # Procesar y validar cada fila
+            return response_bad_request(f"Faltan columnas requeridas: {', '.join(missing_columns)}")
+
         services_created = []
         errors = []
-        
+
         for index, row in df.iterrows():
             try:
-                # Validar que los campos no estén vacíos
                 if pd.isna(row['name']) or pd.isna(row['duration_minutes']) or pd.isna(row['price']):
                     errors.append({
-                        "fila": index + 2,  # +2 porque Excel empieza en 1 y tiene header
+                        "fila": index + 2,
                         "error": "Campos obligatorios vacíos (name, duration_minutes, price)"
                     })
                     continue
-                
-                # Crear servicio
+
                 new_service = models.Service(
                     name=str(row['name']).strip(),
                     description=str(row['description']).strip() if not pd.isna(row['description']) else "",
                     duration_minutes=int(row['duration_minutes']),
                     price=float(row['price']),
-                    state=1  # Activo por defecto
+                    state=True
                 )
-                
                 session.add(new_service)
                 services_created.append(new_service.name)
-                
+
             except Exception as e:
-                errors.append({
-                    "fila": index + 2,
-                    "error": str(e)
-                })
-        
-        # Guardar todos los servicios
+                errors.append({"fila": index + 2, "error": str(e)})
+
         await session.commit()
-        
-        return {
-            "message": "Carga masiva completada",
-            "servicios_creados": len(services_created),
-            "servicios": services_created,
-            "errores": errors if errors else None
-        }
-        
+        return response_success(
+            data={
+                "servicios_creados": len(services_created),
+                "servicios": services_created,
+                "errores": errors if errors else None
+            },
+            message="Carga masiva completada"
+        )
+
     except pd.errors.EmptyDataError:
-        raise HTTPException(status_code=400, detail="El archivo está vacío")
+        return response_bad_request("El archivo está vacío")
     except Exception as e:
         await session.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error al procesar el archivo: {str(e)}"
-        )
+        return response_error(f"Error al procesar el archivo: {str(e)}")

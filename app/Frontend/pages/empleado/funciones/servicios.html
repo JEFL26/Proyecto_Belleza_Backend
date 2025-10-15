@@ -285,6 +285,18 @@
                         <i class="fas fa-upload me-2"></i>
                         Cargar Servicios
                     </button>
+                    <div class="progress mt-3" style="height: 25px; display: none;" id="progressContainer">
+                        <div 
+                            id="uploadProgress" 
+                            class="progress-bar progress-bar-striped progress-bar-animated" 
+                            role="progressbar" 
+                            style="width: 0%;" 
+                            aria-valuenow="0" 
+                            aria-valuemin="0" 
+                            aria-valuemax="100">
+                            0%
+                        </div>
+                    </div>
                 </div>
 
                 <div class="alert alert-info alert-modern">
@@ -413,44 +425,76 @@
         });
 
         // Carga masiva
-        uploadBtn.addEventListener("click", async () => {
+        uploadBtn.addEventListener("click", () => {
             const file = excelFile.files[0];
             if (!file) return;
 
             const formData = new FormData();
             formData.append("file", file);
 
+            // UI inicial
             uploadBtn.disabled = true;
-            uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Cargando...';
+            uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Subiendo...';
+            const progressContainer = document.getElementById("progressContainer");
+            const progressBar = document.getElementById("uploadProgress");
+            progressContainer.style.display = "block";
+            progressBar.style.width = "0%";
+            progressBar.innerText = "0%";
 
-            try {
-                const response = await fetch(bulkUploadUrl, {
-                    method: "POST",
-                    body: formData
-                });
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", bulkUploadUrl, true);
 
-                const data = await response.json();
+            // Progreso de subida
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    const percent = Math.round((event.loaded / event.total) * 100);
+                    progressBar.style.width = percent + "%";
+                    progressBar.innerText = percent + "%";
+                }
+            };
 
-                if (response.ok) {
+            // Cuando termina
+            xhr.onload = async () => {
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = '<i class="fas fa-upload me-2"></i>Cargar Servicios';
+                progressBar.classList.remove("progress-bar-animated");
+                progressBar.style.width = "100%";
+                progressBar.innerText = "100%";
+
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    const data = JSON.parse(xhr.responseText);
                     let message = `✅ ${data.servicios_creados} servicio(s) cargado(s) exitosamente`;
-                    
                     if (data.errores && data.errores.length > 0) {
                         message += `<br><small class="text-warning">⚠️ ${data.errores.length} fila(s) con errores</small>`;
                     }
-                    
                     showAlert(message, "success");
                     excelFile.value = "";
                     fileName.textContent = "";
                     loadServices();
                 } else {
-                    showAlert(`❌ Error: ${data.detail}`, "danger");
+                    try {
+                        const errData = JSON.parse(xhr.responseText);
+                        showAlert(`❌ Error: ${errData.detail || "No se pudo cargar el archivo"}`, "danger");
+                    } catch {
+                        showAlert("❌ Error desconocido al cargar el archivo", "danger");
+                    }
                 }
-            } catch (error) {
-                showAlert(`❌ Error al cargar el archivo: ${error.message}`, "danger");
-            } finally {
+
+                setTimeout(() => {
+                    progressContainer.style.display = "none";
+                    progressBar.classList.add("progress-bar-animated");
+                }, 2000);
+            };
+
+            // Error general
+            xhr.onerror = () => {
+                showAlert("❌ Error de conexión al servidor", "danger");
                 uploadBtn.disabled = false;
                 uploadBtn.innerHTML = '<i class="fas fa-upload me-2"></i>Cargar Servicios';
-            }
+                progressContainer.style.display = "none";
+            };
+
+            xhr.send(formData);
         });
 
         // Descargar plantilla
@@ -470,17 +514,18 @@
         async function loadServices() {
             try {
                 const response = await fetch(apiUrl);
-                const services = await response.json();
+                const result = await response.json();
+                const services = result.data || [];  // ← Aquí está el cambio
                 servicesTable.innerHTML = "";
-                
+
                 services.forEach(svc => {
                     const row = `
                         <tr>
                             <td><strong>#${svc.id_service}</strong></td>
                             <td><strong>${svc.name}</strong></td>
-                            <td>${svc.description}</td>
+                            <td>${svc.description || ''}</td>
                             <td><span class="badge-duration"><i class="fas fa-clock me-1"></i>${svc.duration_minutes} min</span></td>
-                            <td><span class="badge-price">$${svc.price.toLocaleString()}</span></td>
+                            <td><span class="badge-price">$${Number(svc.price).toLocaleString()}</span></td>
                             <td class="text-center">
                                 <button class="btn btn-warning btn-action me-2" onclick="editService(${svc.id_service})">
                                     <i class="fas fa-edit"></i> Editar
@@ -539,7 +584,8 @@
         async function editService(id) {
             try {
                 const response = await fetch(`${apiUrl}/${id}`);
-                const svc = await response.json();
+                //const svc = await response.json();
+                const svc = (await response.json()).data;
                 
                 serviceIdInput.value = svc.id_service;
                 document.getElementById("name").value = svc.name;

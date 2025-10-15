@@ -7,7 +7,7 @@ from typing import Optional
 from loguru import logger
 
 # ==============================
-# 🔐 Configuración general
+# Configuración general
 # ==============================
 ALGORITHM = "HS256"
 # Contexto para encriptar contraseñas
@@ -66,7 +66,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 # ==============================
-# 🎫 Funciones para tokens JWT
+# Funciones para tokens JWT
 # ==============================
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """

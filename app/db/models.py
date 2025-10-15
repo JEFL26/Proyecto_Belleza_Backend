@@ -1,4 +1,3 @@
-# app/db/models.py
 from sqlalchemy import Numeric, Column, Integer, String, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from datetime import datetime
@@ -8,6 +7,9 @@ from app.db.session import Base
 # Rol de usuario
 # ==============================
 class Role(Base):
+    """
+    Representa un rol de usuario en el sistema (Administrador, Cliente, etc.).
+    """
     __tablename__ = "roles"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -15,12 +17,19 @@ class Role(Base):
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     state: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    users: Mapped[list["UserAccount"]] = relationship("UserAccount", back_populates="role")
+    # Relación con usuarios que pertenecen a este rol
+    users: Mapped[list["UserAccount"]] = relationship(
+        "UserAccount", back_populates="role"
+    )
 
 # ==============================
 # Cuenta de usuario
 # ==============================
 class UserAccount(Base):
+    """
+    Representa la cuenta de usuario en el sistema.
+    Contiene información de login, estado y relación con rol y perfil.
+    """
     __tablename__ = "user_accounts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -33,12 +42,18 @@ class UserAccount(Base):
 
     # Relaciones
     role: Mapped["Role"] = relationship("Role", back_populates="users")
-    profile: Mapped["UserProfile"] = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    profile: Mapped["UserProfile"] = relationship(
+        "UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
 
 # ==============================
 # Perfil de usuario
 # ==============================
 class UserProfile(Base):
+    """
+    Contiene información de perfil del usuario como nombres y teléfono.
+    Relacionado directamente con UserAccount.
+    """
     __tablename__ = "user_profiles"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -49,11 +64,16 @@ class UserProfile(Base):
     state: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    # Relaciones
+    # Relación inversa con la cuenta de usuario
     user: Mapped["UserAccount"] = relationship("UserAccount", back_populates="profile")
 
-
+# ==============================
+# Servicio
+# ==============================
 class Service(Base):
+    """
+    Representa un servicio ofrecido por el centro de belleza.
+    """
     __tablename__ = "services"
 
     id_service: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
