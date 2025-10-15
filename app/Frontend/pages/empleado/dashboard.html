@@ -195,7 +195,7 @@
                     </div>
                     <h5 class="fw-bold">Servicios</h5>
                     <p class="text-muted small">Administra los servicios disponibles</p>
-                    <button class="btn btn-blue w-100" onclick="alert('Funcionalidad en desarrollo')">
+                    <button class="btn btn-blue w-100" onclick="goToServices()">
                         Gestionar
                     </button>
                 </div>
@@ -326,7 +326,7 @@
             if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
                 // Limpiar datos de sesión
                 userData = {};
-                window.location.href = 'index.html';
+                window.location.href = '../../index.html';
             }
         }
 
@@ -336,6 +336,10 @@
             loadStats();
             loadRecentActivity();
         });
+        // En dashboard.html
+        function goToServices() {
+            window.location.href = "./funciones/servicios.html";
+        }
     </script>
 </body>
 </html>

@@ -1,171 +1,233 @@
 # app/api.py
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, update, delete
 from passlib.context import CryptContext
-from datetime import timedelta
-from jose import jwt
-from loguru import logger
-
-from app.db.session import get_session
 from app.db import models
-from app.schemas.usuario import UsuarioCreate, UsuarioRead, LoginRequest, TokenResponse
-from app.schemas.servicio import ServicioCreate, ServicioRead
-from app.schemas.reserva import ReservaCreate, ReservaRead
-from app.utils.response_handler import response_success, response_error
+from app.schemas.usuario import UserAccountCreate, UserAccountOut, UserProfileCreate
+from app.schemas.servicio import ServiceCreate, ServiceUpdate, ServiceOut
+from typing import List
+from app.db.session import get_session
+from app.core.security import hash_password, verify_password, create_access_token
+from datetime import timedelta
 from app.core.config import settings
-from app.core.security import create_access_token
+from app.schemas.login import LoginRequest
+import pandas as pd
+import io
 
 router = APIRouter()
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# =======================================================
-# 🧍 USUARIOS
-# =======================================================
-@router.post("/usuarios", response_model=UsuarioRead)
-async def crear_usuario(usuario: UsuarioCreate, session: AsyncSession = Depends(get_session)):
-    """
-    Crea un nuevo usuario (cliente o empleado).
-    """
-    try:
-        result = await session.execute(select(models.Usuario).filter_by(email=usuario.email))
-        existente = result.scalar_one_or_none()
-        if existente:
-            raise HTTPException(status_code=400, detail="El correo ya está registrado.")
+# Crear usuario + perfil
+@router.post("/usuarios", response_model=UserAccountOut)
+async def create_user(user_in: UserAccountCreate, profile_in: UserProfileCreate, session: AsyncSession = Depends(get_session)):
+    # Validar email único
+    result = await session.execute(select(models.UserAccount).filter_by(email=user_in.email))
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Email ya registrado")
 
-        hashed_password = pwd_context.hash(usuario.password)
-        nuevo_usuario = models.Usuario(
-            nombre=usuario.nombre,
-            email=usuario.email,
-            hashed_password=hashed_password,
-            is_active=usuario.is_active,
-            is_admin=usuario.is_admin,
-        )
-        session.add(nuevo_usuario)
-        await session.commit()
-        await session.refresh(nuevo_usuario)
-        logger.info(f"👤 Usuario creado: {nuevo_usuario.email}")
-        return nuevo_usuario
-    except Exception as e:
-        logger.error(f"Error creando usuario: {e}")
-        await session.rollback()
-        raise HTTPException(status_code=500, detail="Error al crear el usuario.")
-
-
-@router.get("/usuarios", response_model=list[UsuarioRead])
-async def listar_usuarios(session: AsyncSession = Depends(get_session)):
-    """
-    Lista todos los usuarios registrados.
-    """
-    result = await session.execute(select(models.Usuario))
-    usuarios = result.scalars().all()
-    return usuarios
-
-
-# =======================================================
-# 🔐 LOGIN
-# =======================================================
-@router.post("/login", response_model=TokenResponse)
-async def login(request: LoginRequest, session: AsyncSession = Depends(get_session)):
-    """
-    Verifica credenciales y devuelve un token JWT.
-    """
-    try:
-        result = await session.execute(select(models.Usuario).filter_by(email=request.email))
-        usuario = result.scalar_one_or_none()
-
-        if not usuario or not pwd_context.verify(request.password, usuario.hashed_password):
-            raise HTTPException(status_code=401, detail="Credenciales inválidas")
-
-        access_token_expires = timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_HOURS)
-        access_token = create_access_token(
-            data={"sub": usuario.email, "is_admin": usuario.is_admin},
-            expires_delta=access_token_expires
-        )
-
-        logger.info(f"✅ Usuario logueado: {usuario.email}")
-        return TokenResponse(access_token=access_token)
-    except Exception as e:
-        logger.error(f"Error en login: {e}")
-        raise HTTPException(status_code=500, detail="Error en el proceso de autenticación.")
-
-
-# =======================================================
-# 💅 SERVICIOS
-# =======================================================
-@router.post("/servicios", response_model=ServicioRead)
-async def crear_servicio(servicio: ServicioCreate, session: AsyncSession = Depends(get_session)):
-    """
-    Crea un nuevo servicio.
-    """
-    nuevo_servicio = models.Servicio(
-        nombre=servicio.nombre,
-        descripcion=servicio.descripcion,
-        precio=servicio.precio,
+    # Crear cuenta
+    hashed = hash_password(user_in.password)
+    user = models.UserAccount(
+        email=user_in.email,
+        hashed_password=hashed,
+        id_role=user_in.id_role
     )
-    session.add(nuevo_servicio)
+    session.add(user)
+    await session.flush()  # Para obtener ID
+
+    # Crear perfil
+    profile = models.UserProfile(
+        id_user=user.id,
+        first_name=profile_in.first_name,
+        last_name=profile_in.last_name,
+        phone=profile_in.phone
+    )
+    session.add(profile)
+
     await session.commit()
-    await session.refresh(nuevo_servicio)
-    logger.info(f"💅 Servicio creado: {nuevo_servicio.nombre}")
-    return nuevo_servicio
+    await session.refresh(user)
+    return user
+
+# Login
+@router.post("/login")
+async def login(login_data: LoginRequest, session: AsyncSession = Depends(get_session)):
+    email = login_data.email
+    password = login_data.password
+
+    result = await session.execute(select(models.UserAccount).filter_by(email=email))
+    user = result.scalar_one_or_none()
+    if not user or not verify_password(password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+
+    access_token_expires = timedelta(hours=settings.ACCESS_TOKEN_EXPIRE_HOURS)
+    token = create_access_token(
+        {"sub": user.email, "id_role": user.id_role},
+        expires_delta=access_token_expires
+    )
+
+    # Obtener perfil (nombre)
+    result_profile = await session.execute(
+        select(models.UserProfile).filter_by(id_user=user.id)
+    )
+    profile = result_profile.scalar_one_or_none()
+
+    # Mapear rol según id_role
+    # Mapear rol según id_role
+    if user.id_role == 1:
+        tipo = "admin"
+    elif user.id_role == 2:
+        tipo = "cliente"
+    else:
+        tipo = "empleado"  # por si agregas otros roles
+    # role_map = {1: "admin", 2: "cliente"}
+    # tipo = role_map.get(user.id_role, "empleado")
+
+    return {
+        "access_token": token,
+        "usuario": {
+            "id": user.id,
+            "email": user.email,
+            "first_name": profile.first_name if profile else "",
+            "tipo": tipo
+        }
+    }
+
+# ==============================
+# CRUD de Servicios
+# ==============================
+
+@router.post("/services", response_model=ServiceOut)
+async def create_service(service: ServiceCreate, session: AsyncSession = Depends(get_session)):
+    new_service = models.Service(**service.dict())
+    session.add(new_service)
+    await session.commit()
+    await session.refresh(new_service)
+    return new_service
 
 
-@router.get("/servicios", response_model=list[ServicioRead])
-async def listar_servicios(session: AsyncSession = Depends(get_session)):
-    """
-    Lista todos los servicios disponibles.
-    """
-    result = await session.execute(select(models.Servicio))
-    servicios = result.scalars().all()
-    return servicios
+@router.get("/services", response_model=List[ServiceOut])
+async def get_services(session: AsyncSession = Depends(get_session)):
+    result = await session.execute(select(models.Service))
+    services = result.scalars().all()
+    return services
 
 
-@router.delete("/servicios/{servicio_id}")
-async def eliminar_servicio(servicio_id: int, session: AsyncSession = Depends(get_session)):
-    """
-    Elimina un servicio por su ID.
-    """
-    result = await session.execute(select(models.Servicio).filter_by(id=servicio_id))
-    servicio = result.scalar_one_or_none()
-    if not servicio:
+@router.get("/services/{service_id}", response_model=ServiceOut)
+async def get_service(service_id: int, session: AsyncSession = Depends(get_session)):
+    result = await session.execute(select(models.Service).filter_by(id_service=service_id))
+    service = result.scalar_one_or_none()
+    if not service:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    return service
+
+
+@router.put("/services/{service_id}", response_model=ServiceOut)
+async def update_service(service_id: int, update_data: ServiceUpdate, session: AsyncSession = Depends(get_session)):
+    result = await session.execute(select(models.Service).filter_by(id_service=service_id))
+    service = result.scalar_one_or_none()
+    if not service:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
 
-    await session.delete(servicio)
+    for key, value in update_data.dict(exclude_unset=True).items():
+        setattr(service, key, value)
+
     await session.commit()
-    return response_success({"mensaje": f"Servicio {servicio.nombre} eliminado correctamente"})
+    await session.refresh(service)
+    return service
 
 
-# =======================================================
-# 📅 RESERVAS
-# =======================================================
-@router.post("/reservas", response_model=ReservaRead)
-async def crear_reserva(reserva: ReservaCreate, session: AsyncSession = Depends(get_session)):
-    """
-    Crea una nueva reserva.
-    """
-    nueva_reserva = models.Reserva(
-        usuario_id=reserva.usuario_id,
-        servicio_id=reserva.servicio_id,
-        fecha_reserva=reserva.fecha_reserva,
-        estado=reserva.estado
-    )
-    session.add(nueva_reserva)
+@router.delete("/services/{service_id}")
+async def delete_service(service_id: int, session: AsyncSession = Depends(get_session)):
+    result = await session.execute(select(models.Service).filter_by(id_service=service_id))
+    service = result.scalar_one_or_none()
+    if not service:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    await session.delete(service)
     await session.commit()
-    await session.refresh(nueva_reserva)
-    logger.info(f"📅 Reserva creada para usuario {reserva.usuario_id}")
-    return nueva_reserva
+    return {"message": "Servicio eliminado correctamente"}
 
 
-@router.get("/reservas", response_model=list[ReservaRead])
-async def listar_reservas(session: AsyncSession = Depends(get_session)):
+@router.post("/services/bulk-upload")
+async def bulk_upload_services(
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_session)
+):
     """
-    Lista todas las reservas registradas.
+    Carga masiva de servicios desde archivo Excel (.xls, .xlsx)
+    El archivo debe tener las columnas: name, description, duration_minutes, price
     """
-    result = await session.execute(select(models.Reserva))
-    reservas = result.scalars().all()
-    return reservas
-
-@router.get("/ping")
-async def ping():
-    return {"message": "pong 🏓"}
+    
+    # Validar extensión del archivo
+    if not file.filename.endswith(('.xls', '.xlsx')):
+        raise HTTPException(
+            status_code=400, 
+            detail="Solo se aceptan archivos .xls o .xlsx"
+        )
+    
+    try:
+        # Leer el archivo Excel
+        contents = await file.read()
+        df = pd.read_excel(io.BytesIO(contents))
+        
+        # Validar columnas requeridas
+        required_columns = ['name', 'description', 'duration_minutes', 'price']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        
+        if missing_columns:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Faltan columnas requeridas: {', '.join(missing_columns)}"
+            )
+        
+        # Procesar y validar cada fila
+        services_created = []
+        errors = []
+        
+        for index, row in df.iterrows():
+            try:
+                # Validar que los campos no estén vacíos
+                if pd.isna(row['name']) or pd.isna(row['duration_minutes']) or pd.isna(row['price']):
+                    errors.append({
+                        "fila": index + 2,  # +2 porque Excel empieza en 1 y tiene header
+                        "error": "Campos obligatorios vacíos (name, duration_minutes, price)"
+                    })
+                    continue
+                
+                # Crear servicio
+                new_service = models.Service(
+                    name=str(row['name']).strip(),
+                    description=str(row['description']).strip() if not pd.isna(row['description']) else "",
+                    duration_minutes=int(row['duration_minutes']),
+                    price=float(row['price']),
+                    state=1  # Activo por defecto
+                )
+                
+                session.add(new_service)
+                services_created.append(new_service.name)
+                
+            except Exception as e:
+                errors.append({
+                    "fila": index + 2,
+                    "error": str(e)
+                })
+        
+        # Guardar todos los servicios
+        await session.commit()
+        
+        return {
+            "message": "Carga masiva completada",
+            "servicios_creados": len(services_created),
+            "servicios": services_created,
+            "errores": errors if errors else None
+        }
+        
+    except pd.errors.EmptyDataError:
+        raise HTTPException(status_code=400, detail="El archivo está vacío")
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al procesar el archivo: {str(e)}"
+        )

@@ -10,30 +10,33 @@ document.getElementById("loginForm").addEventListener("submit", async (event) =>
     alertBox.classList.add("d-none");
     
     try {
-        const response = await fetch("http://127.0.0.1:8000/auth/login", {
+        const response = await fetch("http://127.0.0.1:8000/login", {
             method: "POST",
             headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
+                "Content-Type": "application/json",
             },
-            body: new URLSearchParams({
-                username: email,
+            body: JSON.stringify({
+                email: email,
                 password: password
             }),
         });
 
+        const data = await response.json();
+
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || "Credenciales inválidas");
+            throw new Error(data.detail || "Credenciales inválidas");
         }
 
-        const data = await response.json();
-        
         // Guardar en memoria (temporal para esta sesión)
-        sessionStorage.setItem("token", data.access_token);
-        sessionStorage.setItem("usuario", data.usuario);
-        
-        // Redirigir al dashboard
-        window.location.href = "dashboard.html";
+        localStorage.setItem("usuario", JSON.stringify(data.usuario));
+        localStorage.setItem("token", data.access_token);
+        // Redirigir según tipo
+        const usuario = data.usuario;
+        if (usuario.tipo === "cliente") {
+            window.location.href = "/pages/cliente/profile.html";
+        } else if (usuario.tipo === "empleado" || usuario.tipo === "admin") {
+            window.location.href = "/pages/empleado/dashboard.html";
+        }
         
     } catch (error) {
         alertBox.textContent = error.message;

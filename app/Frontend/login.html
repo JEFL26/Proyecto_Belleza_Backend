@@ -1,3 +1,4 @@
+<!--app/Frontend/login.html-->>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -319,13 +320,13 @@
             btnSpinner.classList.remove("d-none");
             
             try {
-                const response = await fetch("http://127.0.0.1:8000/auth/login", {
+                const response = await fetch("http://127.0.0.1:8000/login", {
                     method: "POST",
                     headers: {
-                        "Content-Type": "application/x-www-form-urlencoded",
+                        "Content-Type": "application/json",
                     },
-                    body: new URLSearchParams({
-                        username: email,
+                    body: JSON.stringify({
+                        email: email,
                         password: password
                     }),
                 });
@@ -337,8 +338,8 @@
                 }
                 
                 // Guardar datos de sesión
-                sessionStorage.setItem("token", data.access_token);
-                sessionStorage.setItem("usuario", data.usuario);
+                localStorage.setItem("usuario", JSON.stringify(data.usuario));
+                localStorage.setItem("token", data.access_token);
                 
                 // Animación de éxito antes de redirigir
                 alertBox.classList.remove("alert-danger");
@@ -348,7 +349,17 @@
                 
                 // Redirigir después de 1 segundo
                 setTimeout(() => {
-                    window.location.href = "dashboard.html";
+                    // Leer usuario en otras páginas
+                   
+                    
+                    // Suponiendo que el backend devuelve un campo "tipo" o "role"
+                    // Ejemplo: tipo = "cliente" o "empleado"
+                    const usuario = data.usuario; // ya lo tienes disponible
+                    if (usuario.tipo === "cliente") {
+                        window.location.href = "/pages/cliente/profile.html";
+                    } else if (usuario.tipo === "empleado" || usuario.tipo === "admin") {
+                        window.location.href = "/pages/empleado/dashboard.html";
+                    }
                 }, 1000);
                 
             } catch (error) {

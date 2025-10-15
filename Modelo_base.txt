@@ -1,65 +1,107 @@
-CREATE DATABASE beauty_reservations;
-USE beauty_reservations;
+CREATE DATABASE beauty_center;
+USE beauty_center;
 
-
--- Roles: define permisos de usuario (ej: Admin, Stylist, Client)
 CREATE TABLE role (
     id_role INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(30) NOT NULL UNIQUE COMMENT 'Role name (Admin, Stylist, Client)',
+    name VARCHAR(50) NOT NULL UNIQUE COMMENT 'Role name: admin, employee, client',
     description VARCHAR(100),
     state BOOLEAN NOT NULL DEFAULT TRUE
 );
 
--- Servicios que ofrece el salón (ej: haircut, manicure, color, etc.)
-CREATE TABLE service (
-    id_service INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE,
-    description VARCHAR(200),
-    duration_minutes INT NOT NULL CHECK (duration_minutes > 0),
-    price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
-    state BOOLEAN NOT NULL DEFAULT TRUE,
-    INDEX idx_service_name (name)
-);
+CREATE INDEX idx_role_name ON role (name);
 
--- Tipos de pago aceptados
-CREATE TABLE payment_method (
-    id_payment_method INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(30) NOT NULL UNIQUE,
-    description VARCHAR(100),
-    state BOOLEAN NOT NULL DEFAULT TRUE
-);
-
--- Cuentas de usuario (login)
 CREATE TABLE user_account (
     id_user INT AUTO_INCREMENT PRIMARY KEY,
+    id_role INT NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    verified BOOLEAN DEFAULT FALSE,
+    is_logged_in BOOLEAN NOT NULL DEFAULT FALSE,
     state BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_user_email (email)
-);
-
--- Asignación de roles a usuarios
-CREATE TABLE user_role (
-    id_user INT NOT NULL,
-    id_role INT NOT NULL,
-    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id_user, id_role),
-    FOREIGN KEY (id_user) REFERENCES user_account(id_user),
     FOREIGN KEY (id_role) REFERENCES role(id_role)
 );
 
--- Perfil extendido del usuario
+CREATE INDEX idx_user_email ON user_account (email);
+CREATE INDEX idx_user_role ON user_account (id_role);
+
 CREATE TABLE user_profile (
     id_profile INT AUTO_INCREMENT PRIMARY KEY,
     id_user INT NOT NULL UNIQUE,
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
-    phone VARCHAR(15),
-    address VARCHAR(100),
-    birth_date DATE,
+    phone VARCHAR(15) NOT NULL,
     state BOOLEAN NOT NULL DEFAULT TRUE,
     FOREIGN KEY (id_user) REFERENCES user_account(id_user)
 );
+
+CREATE INDEX idx_profile_user ON user_profile (id_user);
+
+-- ===============================================================
+-- TABLAS DE SERVICIOS Y RESERVACIONES
+-- ===============================================================
+
+CREATE TABLE service (
+    id_service INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    description VARCHAR(255),
+    duration_minutes INT NOT NULL CHECK (duration_minutes > 0),
+    price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
+    state BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE INDEX idx_service_name ON service (name);
+
+CREATE TABLE reservation_status (
+    id_reservation_status INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE COMMENT 'Pending, Confirmed, Cancelled, Completed',
+    state BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE TABLE reservation (
+    id_reservation INT AUTO_INCREMENT PRIMARY KEY,
+    id_user INT NOT NULL COMMENT 'Client who made the reservation',
+    id_service INT NOT NULL,
+    id_reservation_status INT NOT NULL DEFAULT 1,
+    scheduled_datetime DATETIME NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    total_price DECIMAL(10,2) NOT NULL,
+    payment_method VARCHAR(50) NOT NULL COMMENT 'e.g., Cash, Card, Transfer (fictitious)',
+    state BOOLEAN NOT NULL DEFAULT TRUE,
+    FOREIGN KEY (id_user) REFERENCES user_account(id_user),
+    FOREIGN KEY (id_service) REFERENCES service(id_service),
+    FOREIGN KEY (id_reservation_status) REFERENCES reservation_status(id_reservation_status)
+);
+
+CREATE INDEX idx_reservation_user ON reservation (id_user);
+CREATE INDEX idx_reservation_service ON reservation (id_service);
+CREATE INDEX idx_reservation_date ON reservation (scheduled_datetime);
+
+-- ===============================================================
+-- TABLA OPCIONAL: RECORDATORIOS FUTUROS
+-- ===============================================================
+
+CREATE TABLE reminder (
+    id_reminder INT AUTO_INCREMENT PRIMARY KEY,
+    id_reservation INT NOT NULL,
+    reminder_datetime DATETIME NOT NULL COMMENT 'When to send reminder',
+    message VARCHAR(255) NOT NULL COMMENT 'Reminder message for the client',
+    state BOOLEAN NOT NULL DEFAULT TRUE,
+    FOREIGN KEY (id_reservation) REFERENCES reservation(id_reservation)
+);
+
+CREATE INDEX idx_reminder_reservation ON reminder (id_reservation);
+CREATE INDEX idx_reminder_datetime ON reminder (reminder_datetime);
+
+-- ===============================================================
+-- DATOS INICIALES
+-- ===============================================================
+
+INSERT INTO role (name, description) VALUES
+('admin', 'Administrator with full access'),
+('employee', 'Salon employee with limited access'),
+('client', 'Client who can make reservations');
+
+INSERT INTO reservation_status (name) VALUES
+('Pending'),
+('Confirmed'),
+('Cancelled'),
+('Completed');

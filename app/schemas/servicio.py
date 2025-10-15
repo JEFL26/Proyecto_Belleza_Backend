@@ -1,31 +1,27 @@
 # app/schemas/servicio.py
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, constr, conint, condecimal
 from typing import Optional
-from datetime import datetime
+from decimal import Decimal
 
-# =============================
-#   Esquemas base
-# =============================
+class ServiceBase(BaseModel):
+    name: constr(strip_whitespace=True, min_length=1, max_length=100)
+    description: Optional[str] = None
+    duration_minutes: conint(gt=0)
+    price: condecimal(max_digits=10, decimal_places=2, ge=0)
+    state: Optional[bool] = True
 
-class ServicioBase(BaseModel):
-    nombre: str
-    descripcion: Optional[str] = None
-    precio: float = Field(..., gt=0, description="Precio del servicio")
-
-# =============================
-#   Creación de servicio
-# =============================
-
-class ServicioCreate(ServicioBase):
+class ServiceCreate(ServiceBase):
     pass
 
-# =============================
-#   Lectura / Respuesta
-# =============================
+class ServiceUpdate(BaseModel):
+    name: Optional[constr(strip_whitespace=True, min_length=1, max_length=100)] = None
+    description: Optional[str] = None
+    duration_minutes: Optional[conint(gt=0)] = None
+    price: Optional[condecimal(max_digits=10, decimal_places=2, ge=0)] = None
+    state: Optional[bool] = None
 
-class ServicioRead(ServicioBase):
-    id: int
-    created_at: datetime
+class ServiceOut(ServiceBase):
+    id_service: int
 
     class Config:
-        from_attributes = True
+        orm_mode = True

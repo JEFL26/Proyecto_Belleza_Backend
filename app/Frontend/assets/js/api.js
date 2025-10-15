@@ -37,15 +37,12 @@ const AuthAPI = {
      * Login de usuario
      */
     async login(email, password) {
-        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        const response = await fetch(`${API_BASE_URL}/login`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Type': 'application/json',
             },
-            body: new URLSearchParams({
-                username: email,
-                password: password
-            }),
+            body: JSON.stringify({ email, password }),
         });
 
         if (!response.ok) {
@@ -53,7 +50,7 @@ const AuthAPI = {
             throw new Error(error.detail || 'Error en el login');
         }
 
-        return await response.json();
+        return await response.json(); // Devuelve { access_token }
     },
 
     /**
