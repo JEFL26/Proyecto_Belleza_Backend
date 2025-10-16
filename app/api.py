@@ -28,7 +28,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 # ======================================================
-# 👤 Crear usuario + perfil
+#  Crear usuario + perfil
 # ======================================================
 @router.post("/usuarios", response_model=UserAccountOut)
 async def create_user(
@@ -82,7 +82,7 @@ async def create_user(
 
 
 # ======================================================
-# 🔐 Login
+# Login
 # ======================================================
 @router.post("/login")
 async def login(login_data: LoginRequest, session: AsyncSession = Depends(get_session)):
@@ -134,7 +134,7 @@ async def login(login_data: LoginRequest, session: AsyncSession = Depends(get_se
 
 
 # ======================================================
-# 💇 CRUD de Servicios
+# CRUD de Servicios
 # ======================================================
 
 @router.post("/services", response_model=ServiceOut)
@@ -228,7 +228,7 @@ async def delete_service(service_id: int, session: AsyncSession = Depends(get_se
 
 
 # ======================================================
-# 📦 Carga masiva de servicios (Excel)
+# Carga masiva de servicios (Excel)
 # ======================================================
 @router.post("/services/bulk-upload")
 async def bulk_upload_services(
@@ -239,18 +239,19 @@ async def bulk_upload_services(
     Carga masiva de servicios desde un archivo Excel (.xls, .xlsx).
     Requiere las columnas: name, description, duration_minutes, price.
     """
-    if not file.filename.endswith(('.xls', '.xlsx')):
+    if not file.filename.endswith(('.xls', '.xlsx')): # se establece la condicion para solo recibir excel
         return response_bad_request("Solo se aceptan archivos .xls o .xlsx")
 
     try:
-        contents = await file.read()
-        df = pd.read_excel(io.BytesIO(contents))
+        contents = await file.read() # se lee el excel y se guarda su contenido en contents
+        df = pd.read_excel(io.BytesIO(contents)) # pandas lee el archivo y io asegura que pandas lo pueda entender
 
-        required_columns = ['name', 'description', 'duration_minutes', 'price']
-        missing_columns = [c for c in required_columns if c not in df.columns]
+        required_columns = ['name', 'description', 'duration_minutes', 'price'] # establecemos las columnas esperadas
+        missing_columns = [c for c in required_columns if c not in df.columns] #validacion y error
         if missing_columns:
             return response_bad_request(f"Faltan columnas requeridas: {', '.join(missing_columns)}")
 
+        #inicializacion de resultados
         services_created = []
         errors = []
 
@@ -262,7 +263,7 @@ async def bulk_upload_services(
                         "error": "Campos obligatorios vacíos (name, duration_minutes, price)"
                     })
                     continue
-
+                # conversion de tipos, limpia strings para coincidad con la bd. 
                 new_service = models.Service(
                     name=str(row['name']).strip(),
                     description=str(row['description']).strip() if not pd.isna(row['description']) else "",
@@ -273,9 +274,11 @@ async def bulk_upload_services(
                 session.add(new_service)
                 services_created.append(new_service.name)
 
+            # Si ocurre excepción en la fila, añade un objeto error con la fila y el mensaje.
             except Exception as e:
                 errors.append({"fila": index + 2, "error": str(e)})
 
+        # hace que persista, todo, luego devulve la respuesta de exito
         await session.commit()
         return response_success(
             data={
@@ -285,9 +288,10 @@ async def bulk_upload_services(
             },
             message="Carga masiva completada"
         )
-
+    
+    # excepcion para el archivo vacio.
     except pd.errors.EmptyDataError:
         return response_bad_request("El archivo está vacío")
     except Exception as e:
-        await session.rollback()
+        await session.rollback() # hace un rollback a la base y revierte los cambios.
         return response_error(f"Error al procesar el archivo: {str(e)}")

@@ -1,27 +1,34 @@
 version: "3.9"
 
 services:
-  db:
+  # ==========================
+  # BASE DE DATOS
+  # ==========================
+  centro_belleza_db:
     image: mysql:8.0
     container_name: centro_belleza_db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: 123456789
-      MYSQL_DATABASE: centro_belleza
-      MYSQL_USER: usuario
-      MYSQL_PASSWORD: password
-      MYSQL_ROOT_HOST: '%'  # permite conexiones desde cualquier host (contenedor backend)
-    ports:
-      - "3307:3306"
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      #MYSQL_USER: ${MYSQL_USER}
+      #MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_HOST: '%'
     volumes:
       - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - centro_belleza_network
 
-  backend:
+  # ==========================
+  # BACKEND (FASTAPI)
+  # ==========================
+  centro_belleza_backend:
     build:
       context: .
       dockerfile: Dockerfile
@@ -30,22 +37,57 @@ services:
     env_file:
       - .env
     depends_on:
-      db:
+      centro_belleza_db:
         condition: service_healthy
     ports:
       - "8000:8000"
     command: >
-      sh -c "python -m app.db.init_db && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
-  frontend:
+      sh -c "
+        echo 'Esperando 10 segundos para asegurar que la base de datos esté lista...' &&
+        sleep 10 &&
+        python -m app.db.init_db &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health\")'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - centro_belleza_network
+      - default  # permite acceso desde fuera(Postman)
+
+  # ==========================
+  # FRONTEND (NGINX)
+  # ==========================
+  centro_belleza_frontend:
     build:
       context: ./app/Frontend
       dockerfile: Dockerfile
     container_name: centro_belleza_frontend
     restart: always
+    depends_on:
+      centro_belleza_backend:
+        condition: service_healthy
     ports:
       - "3000:80"
-    depends_on:
-      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/index.html"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - centro_belleza_network
+      - default
 
+# ==========================
+# VOLUMES Y NETWORKS
+# ==========================
 volumes:
   db_data:
+
+networks:
+  centro_belleza_network:
+    internal: true

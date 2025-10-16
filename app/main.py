@@ -46,29 +46,30 @@ async def startup_event():
     """
     logger.info("🚀 API del Centro de Belleza iniciada correctamente")
 
+@app.get("/")
+async def root():
+    return {"message": "endpoint base, si lo vez, funciono.", "status": "ok"}
 
 # ======================================================
 # 🏠 Endpoints generales
 # ======================================================
-@app.get("/")
-async def root():
+# @app.get("/")
+# async def root():
+#     """
+#     Endpoint de prueba para verificar que la API está corriendo.
+#     """
+#     return response_success({"message": "Bienvenido al backend del Centro de Belleza 💅"})
+    
+@app.get("/health")
+async def health_check(session: AsyncSession = Depends(get_session)):
     """
-    Endpoint de prueba para verificar que la API está corriendo.
-    """
-    return response_success({"message": "Bienvenido al backend del Centro de Belleza 💅"})
-
-
-@app.get("/check_db")
-async def check_db(session: AsyncSession = Depends(get_session)):
-    """
-    Endpoint para verificar la conexión con la base de datos.
-    Retorna el número de usuarios registrados.
+    Endpoint de health check que valida la conexión con la base de datos.
+    Se usa por Docker para determinar si el contenedor está "sano".
     """
     try:
-        query = text("SELECT COUNT(*) FROM user_accounts;")
-        result = await session.execute(query)
-        count = result.scalar()
-        return response_success({"usuarios_en_bd": count}, "Conexión a la base de datos exitosa")
+        result = await session.execute(text("SELECT 1"))
+        _ = result.scalar()
+        return {"status": "ok", "message": "API y base de datos funcionando ✅"}
     except Exception as e:
-        logger.error(f"Error al consultar la base de datos: {e}")
-        return response_error(f"Error al consultar la base de datos: {str(e)}")
+        logger.error(f"❌ Error en health check: {e}")
+        return {"status": "error", "message": str(e)}

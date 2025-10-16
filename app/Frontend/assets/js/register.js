@@ -48,7 +48,7 @@ registerForm.addEventListener("submit", async (event) => {
 
         setTimeout(() => {
             // Redirige al perfil del cliente
-            window.location.href = "../pages/client/profile.html";
+            window.location.href = "../pages/cliente/profile.html";
         }, 1000);
 
     } catch (error) {

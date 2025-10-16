@@ -1,4 +1,4 @@
-<!--app/Frontend/dashboard.html-->
+<!-- app/Frontend/dashboard.html -->
 
 <!DOCTYPE html>
 <html lang="es">
@@ -6,340 +6,212 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Centro de Belleza - Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
         }
-        
+
+        /* Navbar */
         .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
             box-shadow: 0 2px 20px rgba(0,0,0,0.1);
         }
-        
+
+        .navbar a {
+            text-decoration: none;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .btn-logout {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .btn-logout:hover {
+            opacity: 0.9;
+        }
+
+        /* Welcome Card */
         .welcome-card {
             background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
             border-radius: 20px;
             padding: 2rem;
-            margin: 2rem 0;
+            margin: 2rem auto;
+            max-width: 900px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        
+
+        .welcome-card h1 {
+            margin: 0;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .welcome-card p {
+            color: #666;
+            margin-top: 0.5rem;
+        }
+
+        /* Action Cards */
+        .action-cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
         .action-card {
             background: white;
             border-radius: 15px;
-            padding: 2rem;
-            margin-bottom: 1.5rem;
-            transition: all 0.3s ease;
-            border: none;
+            padding: 1.5rem;
+            flex: 1 1 200px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            text-align: center;
+            transition: all 0.3s ease;
         }
-        
+
         .action-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 10px 30px rgba(0,0,0,0.15);
         }
-        
+
         .icon-box {
-            width: 70px;
-            height: 70px;
+            width: 60px;
+            height: 60px;
             border-radius: 15px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 2rem;
+            font-size: 1.5rem;
+            margin: 0 auto 1rem auto;
+            color: white;
+        }
+
+        .icon-box.purple { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .icon-box.pink { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .icon-box.blue { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+        .icon-box.green { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+
+        .action-card h5 {
+            margin: 0.5rem 0;
+        }
+
+        .action-card p {
+            font-size: 0.9rem;
+            color: #666;
             margin-bottom: 1rem;
         }
-        
-        .icon-box.purple {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-        
-        .icon-box.pink {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-        }
-        
-        .icon-box.blue {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            color: white;
-        }
-        
-        .icon-box.green {
-            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-            color: white;
-        }
-        
-        .stats-card {
-            background: white;
-            border-radius: 15px;
-            padding: 1.5rem;
-            text-align: center;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
-        }
-        
-        .stats-number {
-            font-size: 2.5rem;
+
+        .btn-action {
+            width: 100%;
+            padding: 0.6rem;
+            border: none;
+            border-radius: 10px;
             font-weight: bold;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            cursor: pointer;
+            color: white;
         }
+
+        .btn-purple { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .btn-pink { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .btn-blue { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+        .btn-green { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
     </style>
 </head>
 <body>
     <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg sticky-top">
-        <div class="container-fluid">
-            <a class="navbar-brand fw-bold" href="#">
-                <i class="fas fa-spa text-purple"></i> Centro de Belleza
-            </a>
-            <div class="d-flex align-items-center">
-                <span class="me-3">
-                    <i class="fas fa-user-circle"></i> 
-                    <span id="userName">Usuario</span>
-                </span>
-                <button class="btn btn-outline-danger btn-sm" onclick="logout()">
-                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
-                </button>
-            </div>
+    <nav class="navbar">
+        <a href="../../index.html"><i class="fas fa-spa"></i> Centro de Belleza</a>
+        <div>
+            <span id="userName">Usuario</span>
+            <button class="btn-logout" onclick="logout()">Cerrar Sesión</button>
         </div>
     </nav>
 
-    <div class="container py-4">
-        <!-- Welcome Card -->
-        <div class="welcome-card">
-            <div class="row align-items-center">
-                <div class="col-md-8">
-                    <h1 class="display-5 fw-bold mb-3">
-                        ¡Bienvenida, <span id="userNameWelcome">Usuario</span>! 💅
-                    </h1>
-                    <p class="lead text-muted">
-                        Gestiona tus citas, servicios y clientes desde un solo lugar
-                    </p>
-                </div>
-                <div class="col-md-4 text-center">
-                    <i class="fas fa-calendar-check" style="font-size: 5rem; color: #667eea;"></i>
-                </div>
-            </div>
+    <!-- Welcome Card -->
+    <div class="welcome-card">
+        <div>
+            <h1>¡Bienvenida, <span id="userNameWelcome">Usuario</span>! 💅</h1>
+            <p>Gestiona tus citas, servicios y clientes desde un solo lugar</p>
         </div>
-
-        <!-- Stats Cards -->
-        <div class="row mb-4">
-            <div class="col-md-3 col-sm-6 mb-3">
-                <div class="stats-card">
-                    <i class="fas fa-calendar-day text-primary mb-2" style="font-size: 2rem;"></i>
-                    <div class="stats-number" id="todayReservations">0</div>
-                    <div class="text-muted">Citas Hoy</div>
-                </div>
-            </div>
-            <div class="col-md-3 col-sm-6 mb-3">
-                <div class="stats-card">
-                    <i class="fas fa-clock text-warning mb-2" style="font-size: 2rem;"></i>
-                    <div class="stats-number" id="pendingReservations">0</div>
-                    <div class="text-muted">Pendientes</div>
-                </div>
-            </div>
-            <div class="col-md-3 col-sm-6 mb-3">
-                <div class="stats-card">
-                    <i class="fas fa-users text-success mb-2" style="font-size: 2rem;"></i>
-                    <div class="stats-number" id="totalClients">0</div>
-                    <div class="text-muted">Clientes</div>
-                </div>
-            </div>
-            <div class="col-md-3 col-sm-6 mb-3">
-                <div class="stats-card">
-                    <i class="fas fa-cut text-danger mb-2" style="font-size: 2rem;"></i>
-                    <div class="stats-number" id="totalServices">0</div>
-                    <div class="text-muted">Servicios</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Action Cards -->
-        <div class="row">
-            <div class="col-md-6 col-lg-3">
-                <div class="action-card text-center">
-                    <div class="icon-box purple mx-auto">
-                        <i class="fas fa-calendar-plus"></i>
-                    </div>
-                    <h5 class="fw-bold">Nueva Reserva</h5>
-                    <p class="text-muted small">Agenda una nueva cita para un cliente</p>
-                    <button class="btn btn-purple w-100" onclick="alert('Funcionalidad en desarrollo')">
-                        Crear Reserva
-                    </button>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-3">
-                <div class="action-card text-center">
-                    <div class="icon-box pink mx-auto">
-                        <i class="fas fa-list-check"></i>
-                    </div>
-                    <h5 class="fw-bold">Ver Reservas</h5>
-                    <p class="text-muted small">Gestiona todas las citas programadas</p>
-                    <button class="btn btn-pink w-100" onclick="alert('Funcionalidad en desarrollo')">
-                        Ver Todas
-                    </button>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-3">
-                <div class="action-card text-center">
-                    <div class="icon-box blue mx-auto">
-                        <i class="fas fa-scissors"></i>
-                    </div>
-                    <h5 class="fw-bold">Servicios</h5>
-                    <p class="text-muted small">Administra los servicios disponibles</p>
-                    <button class="btn btn-blue w-100" onclick="goToServices()">
-                        Gestionar
-                    </button>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-3">
-                <div class="action-card text-center">
-                    <div class="icon-box green mx-auto">
-                        <i class="fas fa-user-plus"></i>
-                    </div>
-                    <h5 class="fw-bold">Clientes</h5>
-                    <p class="text-muted small">Gestiona la base de datos de clientes</p>
-                    <button class="btn btn-success w-100" onclick="alert('Funcionalidad en desarrollo')">
-                        Ver Clientes
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Recent Activity -->
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="action-card">
-                    <h5 class="fw-bold mb-3">
-                        <i class="fas fa-clock-rotate-left me-2"></i>
-                        Actividad Reciente
-                    </h5>
-                    <div id="activityList">
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle me-2"></i>
-                            Conectando con el servidor...
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div>
+            <i class="fas fa-calendar-check" style="font-size: 4rem; color: #667eea;"></i>
         </div>
     </div>
 
-    <style>
-        .btn-purple {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-        }
-        .btn-purple:hover {
-            opacity: 0.9;
-            color: white;
-        }
-        .btn-pink {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-            border: none;
-        }
-        .btn-pink:hover {
-            opacity: 0.9;
-            color: white;
-        }
-        .btn-blue {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            color: white;
-            border: none;
-        }
-        .btn-blue:hover {
-            opacity: 0.9;
-            color: white;
-        }
-    </style>
+    <!-- Action Cards -->
+    <div class="action-cards">
+        <div class="action-card">
+            <div class="icon-box purple"><i class="fas fa-calendar-plus"></i></div>
+            <h5>Nueva Reserva</h5>
+            <p>Sin los endpoints aun</p>
+            <button class="btn-action btn-purple" onclick="alert('Funcionalidad en desarrollo')">Crear Reserva</button>
+        </div>
+
+        <div class="action-card">
+            <div class="icon-box pink"><i class="fas fa-list-check"></i></div>
+            <h5>Ver Reservas</h5>
+            <p>Sin los endpoints aun</p>
+            <button class="btn-action btn-pink" onclick="alert('Funcionalidad en desarrollo')">Ver Todas</button>
+        </div>
+
+        <div class="action-card">
+            <div class="icon-box blue"><i class="fas fa-scissors"></i></div>
+            <h5>Servicios</h5>
+            <p>Administra los servicios disponibles</p>
+            <button class="btn-action btn-blue" onclick="goToServices()">Gestionar</button>
+        </div>
+
+        <div class="action-card">
+            <div class="icon-box green"><i class="fas fa-user-plus"></i></div>
+            <h5>Clientes</h5>
+            <p>Gestiona la base de datos de clientes</p>
+            <button class="btn-action btn-green" onclick="alert('Funcionalidad en desarrollo')">Ver Clientes</button>
+        </div>
+    </div>
 
     <script>
-        // Simular carga de datos del usuario desde memoria
-        let userData = {
-            name: 'Administrador',
-            token: 'temp_token_123'
-        };
+        // Simular carga de datos del usuario
+        let userData = { name: 'Administrador' };
 
-        // Cargar nombre de usuario
         function loadUserData() {
-            // En producción, esto vendría del backend
             const userName = userData.name || 'Usuario';
             document.getElementById('userName').textContent = userName;
             document.getElementById('userNameWelcome').textContent = userName;
         }
 
-        // Simular carga de estadísticas
-        function loadStats() {
-            // Estos datos vendrían del backend
-            document.getElementById('todayReservations').textContent = '5';
-            document.getElementById('pendingReservations').textContent = '3';
-            document.getElementById('totalClients').textContent = '127';
-            document.getElementById('totalServices').textContent = '8';
-        }
-
-        // Cargar actividad reciente
-        async function loadRecentActivity() {
-            const activityList = document.getElementById('activityList');
-            
-            try {
-                // Simulación de datos - en producción vendría del backend
-                const activities = [
-                    { icon: 'check-circle', color: 'success', text: 'Reserva confirmada para María García', time: 'Hace 5 min' },
-                    { icon: 'user-plus', color: 'primary', text: 'Nuevo cliente registrado: Juan Pérez', time: 'Hace 15 min' },
-                    { icon: 'calendar', color: 'warning', text: 'Recordatorio enviado a Ana López', time: 'Hace 30 min' }
-                ];
-                
-                activityList.innerHTML = activities.map(activity => `
-                    <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
-                        <div class="me-3">
-                            <i class="fas fa-${activity.icon} text-${activity.color}" style="font-size: 1.5rem;"></i>
-                        </div>
-                        <div class="flex-grow-1">
-                            <div class="fw-semibold">${activity.text}</div>
-                            <small class="text-muted">${activity.time}</small>
-                        </div>
-                    </div>
-                `).join('');
-            } catch (error) {
-                activityList.innerHTML = `
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        No se pudo cargar la actividad reciente
-                    </div>
-                `;
-            }
-        }
-
-        // Cerrar sesión
         function logout() {
             if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
-                // Limpiar datos de sesión
                 userData = {};
                 window.location.href = '../../index.html';
             }
         }
 
-        // Inicializar al cargar la página
-        window.addEventListener('DOMContentLoaded', () => {
-            loadUserData();
-            loadStats();
-            loadRecentActivity();
-        });
-        // En dashboard.html
         function goToServices() {
             window.location.href = "./funciones/servicios.html";
         }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadUserData();
+        });
     </script>
 </body>
 </html>
