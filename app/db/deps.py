@@ -17,7 +17,7 @@ async def get_db() -> AsyncGenerator:
         session = AsyncSessionLocal()
         yield session
     except Exception as e:
-        logger.error(f"❌ Error en get_db: {e}")
+        logger.error(f"Error en get_db: {e}")
         raise
     finally:
         if session:
